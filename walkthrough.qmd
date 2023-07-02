@@ -1,0 +1,199 @@
+---
+title: "Quarto Testing"
+format: html
+---
+
+
+```{python}
+#| label: practice
+# got i am so bad at this
+def my_function(string):
+    list = []
+    for letter in  string:
+        list.append(letter.upper())
+    return "".join(list)
+
+string = "input"
+print(my_function(string))
+```
+
+```{python}
+import pandas as pd
+
+df = pd.DataFrame([
+    { 'sold': 0, 'revenue': 0 },
+    { 'sold': 4, 'revenue': 8 },
+    { 'sold': 16, 'revenue': 32 },
+])
+df
+```
+
+
+```{python}
+import statsmodels.formula.api as smf
+
+# formula method
+# What effect does the number of coffees sold have on our revenue?
+model = smf.ols(formula='revenue ~ sold', data=df)
+results = model.fit()
+```
+
+
+```{python}
+import statsmodels.api as sm
+
+# dataframe method
+# What effect does the number of coffees sold have on our revenue?
+X = df[['sold']]
+y = df.revenue
+
+model = sm.OLS(y, sm.add_constant(X)) # the df method doesn't automatically add a constant, so we have to here
+results = model.fit()
+```
+
+
+```{python}
+results.summary()
+```
+
+
+```{python}
+# pandas for data, statsmodels for regression, seaborn for graphs
+import pandas as pd
+import statsmodels.formula.api as smf
+import seaborn as sns
+
+sns.set_style("darkgrid")
+
+%matplotlib inline
+```
+
+
+```{python}
+df = pd.DataFrame([
+    { 'miles': 2000, 'crashes': 2 },
+    { 'miles': 50000, 'crashes': 48 },
+    { 'miles': 30000, 'crashes': 33 },
+])
+df
+```
+
+
+```{python}
+model = smf.ols("crashes ~ miles", data = df)
+results = model.fit()
+results.summary()
+```
+
+
+```{python}
+import numpy as np
+
+# it's easier to think about the data in "thousands of miles"
+model = smf.ols(formula = "crashes ~ np.divide(miles, 1000)", data = df)
+results = model.fit()
+results.summary()
+```
+
+
+```{python}
+df['miles_1k'] = df.miles / 1000 # add new row to our df
+df
+
+model = smf.ols(formula = "crashes ~ miles_1k", data = df)
+results = model.fit()
+results.summary()
+```
+
+
+```{python}
+df = pd.DataFrame([
+    {'miles': 2000, 'crashes': 2},
+    {'miles': 2000, 'crashes': 0},
+    {'miles': 2000, 'crashes': 3},
+    {'miles': 5000, 'crashes': 3},
+    {'miles': 5000, 'crashes': 6},
+    {'miles': 5000, 'crashes': 5}
+])
+df
+```
+
+
+```{python}
+df['miles_1k'] = df.miles / 1000
+model = smf.ols(formula = "crashes ~ miles_1k", data = df)
+results = model.fit()
+results.summary()
+```
+
+
+```{python}
+sns.regplot(x = "miles", y = "crashes", ci = None, data = df, color = "#29db15")
+```
+
+
+```{python}
+df["predicted"] = results.predict()
+df["residual"] = results.resid
+df
+```
+
+
+```{python}
+# now we're gonna predict certain values
+df = pd.DataFrame([
+    { 'miles': 1000 },
+    { 'miles': 4000 },
+    { 'miles': 2500 },
+    { 'miles': 7500 }
+])
+df
+```
+
+
+```{python}
+# df["predicted"] = results.predict(df)
+# above throws an error because the formula was based on miles_1k, not miles
+df["miles_1k"] = df.miles / 1000
+df["predicted"] = results.predict(df)
+df
+```
+
+
+```{python}
+# time to interrogate regressions
+df = pd.DataFrame([
+    {'miles': 2000, 'car_age': 4, 'crashes': 2},
+    {'miles': 2000, 'car_age': 2, 'crashes': 0},
+    {'miles': 2000, 'car_age': 6, 'crashes': 3},
+    {'miles': 5000, 'car_age': 10, 'crashes': 3},
+    {'miles': 5000, 'car_age': 3, 'crashes': 6},
+    {'miles': 5000, 'car_age': 6, 'crashes': 5}
+])
+
+# What effect does the number of miles driven have on the number of crashes?
+model = smf.ols(formula='crashes ~ np.divide(miles, 1000)', data=df)
+results = model.fit()
+results.summary()
+# r-squared = 0.591
+```
+
+
+```{python}
+# what if we also consider the car age?
+model = smf.ols(formula = "crashes ~ np.divide(miles, 1000) + car_age", data = df)
+results = model.fit()
+results.summary()
+# r-squared = 0.620
+```
+
+But r-squared actually increases _every time_ you add a parameter to the regression, no matter _what_.
+So how else can we compare these two models?
+
+The best option is **adjusted r-squared**. 
+It's r-squared adjusted for the number of parameters given to the model.
+It only goes up if the new parameters are useful.
+
+The `P>|t|` column is a feature's p-value.
+We can see that adding `car_age` actually made `miles`'s p-value go up; more featurs ≠ better.
+The `Prob (F-statistic)` row is the whole regression's p-value.

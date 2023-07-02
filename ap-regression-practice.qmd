@@ -1,0 +1,123 @@
+---
+title: "AP Regressiong Practice"
+format: gfm
+---
+
+```{python}
+import pandas as pd
+import numpy as np
+from pyhere import here # need my here package...
+
+# Keep decimal numbers to 4 decimal places
+pd.set_option("display.float_format", '{:,.4f}'.format)
+pd.set_option("display.max_columns", 100)
+```
+
+
+```{python}
+life_expec = pd.read_csv(here("data", "US_A.CSV"))
+life_expec.columns = ['tract_id', 'STATE2KX','CNTY2KX', 'TRACT2KX', 'life_expectancy', 
+                      'life_expectancy_std_err', 'flag']
+life_expec.head()
+```
+
+
+```{python}
+columns = {
+    'Geo_FIPS': 'Geo_FIPS',
+    'ACS15_5yr_B23025001': 'total_pop',
+    'ACS15_5yr_B23025005': 'unemployed'
+}
+employment = pd.read_csv(here("data", "acs_unemployment.csv"), usecols = columns.keys(), encoding = 'latin-1')
+
+employment = employment.rename(columns = columns)
+
+employment["prop_unemployed"] = employment.unemployed / employment.total_pop
+employment.head()
+```
+
+
+```{python}
+columns = {
+    'Geo_FIPS': 'Geo_FIPS',
+    'ACS15_5yr_B03002001': 'race_table_total',
+    'ACS15_5yr_B03002004': 'black',
+    'ACS15_5yr_B03002003': 'white',
+    'ACS15_5yr_B03002012': 'hispanic',
+    'ACS15_5yr_B06009001': 'edu_table_total',
+    'ACS15_5yr_B06009002': 'less_than_hs',
+    'ACS15_5yr_C17002004': 'poverty_100_124',
+    'ACS15_5yr_C17002005': 'poverty_125_149',
+    'ACS15_5yr_C17002001': 'poverty_table_total',
+    'ACS15_5yr_B19013001': 'income'
+}   
+
+census = pd.read_csv(here("data", "acs_other.csv"), usecols = columns.keys(), encoding = 'latin-1')
+census = census.rename(columns = columns)
+census.head()
+```
+
+
+```{python}
+census_features = pd.DataFrame({
+    "Geo_FIPS": census.Geo_FIPS,
+    "prop_black": census.black / census.race_table_total,
+    "prop_white": census.white / census.race_table_total,
+    "prop_hispanic": census.hispanic / census.race_table_total,
+    "prop_less_than_hs": census.less_than_hs / census.edu_table_total,
+    "prop_under_150_poverty": (census.poverty_100_124 + census.poverty_125_149) / census.poverty_table_total,
+    "income": census.income,
+})
+census_features.head()
+```
+
+
+```{python}
+merged = life_expec.merge(employment, left_on = "tract_id", right_on = "Geo_FIPS")
+merged = merged.merge(census_features, left_on = "Geo_FIPS", right_on = "Geo_FIPS")
+merged.head()
+```
+
+
+```{python}
+import statsmodels.formula.api as smf
+
+model = smf.ols(""" 
+    life_expectancy ~ 
+        prop_black + 
+        prop_white + 
+        prop_hispanic + 
+        prop_less_than_hs + 
+        prop_under_150_poverty + 
+        np.divide(income, 10000) + 
+        np.multiply(prop_unemployed, 100)
+""", data = merged) # multi-line string
+# multiplied the prop_unemployed to get the incrase as a percentage
+# with every one percent increase in the unemployed population,
+# the life expectancy decreases by ~0.15 years
+
+results = model.fit()
+results.summary()
+```
+
+
+```{python}
+model_2 = smf.ols(""" 
+    life_expectancy ~ 
+        prop_black + 
+        prop_white + 
+        prop_hispanic + 
+        prop_less_than_hs + 
+        prop_under_150_poverty + 
+        income + 
+        prop_unemployed
+""", data = merged) # multi-line string
+'''
+this time it basically says:
+were the unemployed proportion goes from 0 to 100%, the life expectancy
+would decrease by ~15 years
+'''
+
+results_2 = model_2.fit()
+results_2.summary()
+```
